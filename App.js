@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,30 +7,32 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
-import React, { useEffect, useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import res from './src/components/Res';
-import { SIZES } from './src/components/theme';
 
- 
+import { SIZES } from './src/components/theme';
+import res from './src/components/Res';
+
+import { ensureNotificationPermission } from './src/services/permissions';
+import {
+  scheduleStartEnd,
+  cancelAllScheduled,
+} from './src/services/NotificationScheduler';
+
 const App = () => {
-  const prayersData = [
+  const [prayers, setPrayers] = useState([
     { name: 'Fajr', startTime: null, endTime: null },
     { name: 'Zuhar', startTime: null, endTime: null },
     { name: 'Asar', startTime: null, endTime: null },
     { name: 'Maghrib', startTime: null, endTime: null },
     { name: 'Isha', startTime: null, endTime: null },
-  ];
-  const [prayers, setPrayers] = useState(prayersData);
+  ]);
 
   const [showPicker, setShowPicker] = useState(false);
   const [pickerType, setPickerType] = useState('start');
   const [selectedPrayerIndex, setSelectedPrayerIndex] = useState(null);
 
- 
-
-  const formatTime = time => {
+  const formatTime = (time) => {
     if (!time || !(time instanceof Date)) return '- -';
     const hours = time.getHours();
     const minutes = time.getMinutes();
@@ -38,82 +41,93 @@ const App = () => {
     const h = String(adjustedHours).padStart(2, '0');
     const m = String(minutes).padStart(2, '0');
     return `${h}:${m} ${amPm}`;
-  };
+    };
 
-  
-  const handleTimeChange = (event, selectedTime) => {
-    setShowPicker(false);
-    if (!selectedTime || selectedPrayerIndex === null) return;
-
-    const updatedPrayers = [...prayers];
-
-    if (pickerType === 'start') {
-      // set start
-      updatedPrayers[selectedPrayerIndex].startTime = selectedTime;
-
-      // auto end +30 min if none set
-      const existingEnd = updatedPrayers[selectedPrayerIndex].endTime;
-      const autoEnd = existingEnd || new Date(selectedTime.getTime() + 30 * 60000);
-      updatedPrayers[selectedPrayerIndex].endTime = autoEnd;
- 
- 
-    } else {
-      // set end
-      updatedPrayers[selectedPrayerIndex].endTime = selectedTime;
- 
-     
-    }
-
-    setPrayers(updatedPrayers);
-    savePrayersTime(updatedPrayers);
-  };
-
-  const savePrayersTime = async data => {
+  const savePrayersTime = async (data) => {
     try {
-      await AsyncStorage.setItem('PRAYERS', JSON.stringify(data));
-      console.log('Saved to async storage');
+      const formatted = data.map((prayer) => ({
+        ...prayer,
+        startTime: prayer.startTime ? prayer.startTime.toISOString() : null,
+        endTime: prayer.endTime ? prayer.endTime.toISOString() : null,
+      }));
+      await AsyncStorage.setItem('PRAYERS', JSON.stringify(formatted));
+      console.log('Saved PRAYERS to AsyncStorage');
     } catch (err) {
-      console.log('There is an error while saving');
+      console.log('Error saving PRAYERS', err);
     }
   };
 
-  const handleStart = index => {
+  useEffect(() => {
+    (async () => {
+      try {
+        await ensureNotificationPermission();
+
+        const stored = await AsyncStorage.getItem('PRAYERS');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const restored = parsed.map((p) => ({
+            ...p,
+            startTime: p.startTime ? new Date(p.startTime) : null,
+            endTime: p.endTime ? new Date(p.endTime) : null,
+          }));
+          setPrayers(restored);
+
+          await cancelAllScheduled();
+          for (const pr of restored) {
+            if (pr.startTime && pr.endTime) {
+              await scheduleStartEnd(pr.name, pr.startTime, pr.endTime);
+            }
+          }
+          console.log('Loaded & scheduled saved prayer times');
+        }
+      } catch (e) {
+        console.warn('Init error', e);
+      }
+    })();
+  }, []);
+
+  const handleStart = (index) => {
     setPickerType('start');
     setShowPicker(true);
     setSelectedPrayerIndex(index);
   };
 
-  const handleEnd = index => {
+  const handleEnd = (index) => {
     setPickerType('end');
     setShowPicker(true);
     setSelectedPrayerIndex(index);
   };
 
-  useEffect(() => {
-    const loadPrayerFromStorage = async () => {
-      try {
-        const stored = await AsyncStorage.getItem('PRAYERS');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          const restored = parsed.map(prayer => ({
-            ...prayer,
-            startTime: prayer.startTime ? new Date(prayer.startTime) : null,
-            endTime: prayer.endTime ? new Date(prayer.endTime) : null,
-          }));
-          setPrayers(restored);
-          console.log('Loaded saved namaz times');
-        }
-      } catch (err) {
-        console.log('Error while fetching from AsyncStorage');
+  const handleTimeChange = async (event, selectedTime) => {
+    setShowPicker(false);
+    if (!selectedTime || selectedPrayerIndex === null) return;
+
+    const updated = [...prayers];
+    if (pickerType === 'start') {
+      updated[selectedPrayerIndex].startTime = selectedTime;
+      const autoEnd = new Date(selectedTime.getTime() + 30 * 60000);
+      updated[selectedPrayerIndex].endTime = autoEnd;
+    } else {
+      updated[selectedPrayerIndex].endTime = selectedTime;
+    }
+    setPrayers(updated);
+
+    await savePrayersTime(updated);
+
+    await cancelAllScheduled();
+    for (const pr of updated) {
+      if (pr.startTime && pr.endTime) {
+        await scheduleStartEnd(pr.name, pr.startTime, pr.endTime);
       }
-    };
-    loadPrayerFromStorage();
-  }, []);
+    }
+    console.log('Re-scheduled after time change');
+  };
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <View style={styles.overlay}>
         <Text style={styles.appTitle}>🕌 Namaz Mode</Text>
+
         <ScrollView
           contentContainerStyle={{ marginBottom: 20 }}
           showsVerticalScrollIndicator={false}
