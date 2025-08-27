@@ -32,7 +32,7 @@ const App = () => {
   const [pickerType, setPickerType] = useState('start');
   const [selectedPrayerIndex, setSelectedPrayerIndex] = useState(null);
 
-  const formatTime = (time) => {
+  const formatTime = time => {
     if (!time || !(time instanceof Date)) return '- -';
     const hours = time.getHours();
     const minutes = time.getMinutes();
@@ -41,11 +41,11 @@ const App = () => {
     const h = String(adjustedHours).padStart(2, '0');
     const m = String(minutes).padStart(2, '0');
     return `${h}:${m} ${amPm}`;
-    };
+  };
 
-  const savePrayersTime = async (data) => {
+  const savePrayersTime = async data => {
     try {
-      const formatted = data.map((prayer) => ({
+      const formatted = data.map(prayer => ({
         ...prayer,
         startTime: prayer.startTime ? prayer.startTime.toISOString() : null,
         endTime: prayer.endTime ? prayer.endTime.toISOString() : null,
@@ -65,10 +65,12 @@ const App = () => {
         const stored = await AsyncStorage.getItem('PRAYERS');
         if (stored) {
           const parsed = JSON.parse(stored);
-          const restored = parsed.map((p) => ({
-            ...p,
-            startTime: p.startTime ? new Date(p.startTime) : null,
-            endTime: p.endTime ? new Date(p.endTime) : null,
+          const restored = parsed.map(prayerData => ({
+            ...prayerData,
+            startTime: prayerData.startTime
+              ? new Date(prayerData.startTime)
+              : null,
+            endTime: prayerData.endTime ? new Date(prayerData.endTime) : null,
           }));
           setPrayers(restored);
 
@@ -86,13 +88,13 @@ const App = () => {
     })();
   }, []);
 
-  const handleStart = (index) => {
+  const handleStart = index => {
     setPickerType('start');
     setShowPicker(true);
     setSelectedPrayerIndex(index);
   };
 
-  const handleEnd = (index) => {
+  const handleEnd = index => {
     setPickerType('end');
     setShowPicker(true);
     setSelectedPrayerIndex(index);
@@ -101,7 +103,11 @@ const App = () => {
   const handleTimeChange = async (event, selectedTime) => {
     setShowPicker(false);
     if (!selectedTime || selectedPrayerIndex === null) return;
-
+    if (
+      (event.type && event.type === 'dismissed') || 
+      selectedTime === undefined  
+    )
+      return;
     const updated = [...prayers];
     if (pickerType === 'start') {
       updated[selectedPrayerIndex].startTime = selectedTime;
@@ -159,7 +165,11 @@ const App = () => {
           {showPicker && (
             <DateTimePicker
               mode="time"
-              value={new Date()}
+              value={
+                pickerType === 'start'
+                  ? prayers[selectedPrayerIndex].startTime || new Date()
+                  : prayers[selectedPrayerIndex].endTime || new Date()
+              }
               onChange={handleTimeChange}
             />
           )}

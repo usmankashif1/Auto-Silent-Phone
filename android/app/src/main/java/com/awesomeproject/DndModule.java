@@ -27,7 +27,7 @@ public class DndModule extends ReactContextBaseJavaModule {
         return "DndModule";
     }
 
-    // 📴 SILENT / DND ON
+    // SILENT / DND ON
     @ReactMethod
     public void setSilentMode() {
         NotificationManager nm =

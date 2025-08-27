@@ -28,7 +28,6 @@
       </intent-filter>
     </activity>
 
-    <!-- Notifee foreground service -->
     <service
       android:name="app.notifee.core.ForegroundService"
       android:exported="false" />
