@@ -18,6 +18,7 @@ import {
   scheduleStartEnd,
   cancelAllScheduled,
 } from './src/services/NotificationScheduler';
+import { startDndService } from './src/services/DndServiceStarter';
 
 const App = () => {
   const [prayers, setPrayers] = useState([
@@ -86,6 +87,12 @@ const App = () => {
         console.warn('Init error', e);
       }
     })();
+
+(async () => {
+    await ensureNotificationPermission();
+    startDndService(); // Start the foreground service
+  })();
+
   }, []);
 
   const handleStart = index => {

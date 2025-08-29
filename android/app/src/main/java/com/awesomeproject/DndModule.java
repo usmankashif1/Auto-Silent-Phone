@@ -75,5 +75,18 @@ public class DndModule extends ReactContextBaseJavaModule {
         } else {
             if (am != null) am.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
         }
+        
     }
+@ReactMethod
+public void startForegroundService() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Intent serviceIntent = new Intent(reactContext, DndForegroundService.class);
+        reactContext.startForegroundService(serviceIntent);
+    } else {
+        Intent serviceIntent = new Intent(reactContext, DndForegroundService.class);
+        reactContext.startService(serviceIntent);
+    }
+}
+
+    
 }

@@ -31,5 +31,11 @@
     <service
       android:name="app.notifee.core.ForegroundService"
       android:exported="false" />
+
+<service
+    android:name=".DndForegroundService"
+    android:exported="false" />
+
+
   </application>
 </manifest>
